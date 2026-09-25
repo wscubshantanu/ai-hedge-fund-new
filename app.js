@@ -283,7 +283,23 @@ function initAuth() {
     btnQuickDemo.addEventListener('click', async () => {
       emailInput.value = 'analyst@aether.fund';
       passInput.value = 'quant2026';
-      await performAuthentication('analyst@aether.fund', 'quant2026');
+      
+      const demoUser = {
+        name: "Shantanu Kalhapure (AI & DS Lead)",
+        role: "Chief Quantitative Strategist",
+        clearance_level: "LEVEL-5 (CIO & CRO Authority)",
+        token: "aether_local_verified_token"
+      };
+      sessionStorage.setItem('aether_auth', JSON.stringify(demoUser));
+      applyAuthenticatedUser(demoUser);
+      resetActivity();
+      showAlert(`✅ Clearance Verified: Welcome ${demoUser.name}`, 'success');
+
+      setTimeout(() => {
+        authOverlay.classList.remove('active');
+        if (authAlert) authAlert.style.display = 'none';
+        runAnalysis('NVDA');
+      }, 350);
     });
   }
 
@@ -338,13 +354,21 @@ function initAuth() {
     }
 
     try {
-      const res = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: username, password })
-      });
+      let backendOk = false;
+      let res = null;
 
-      if (res.ok) {
+      try {
+        res = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: username, password })
+        });
+        backendOk = res.ok;
+      } catch (networkErr) {
+        backendOk = false;
+      }
+
+      if (backendOk && res) {
         const userData = await res.json();
         sessionStorage.setItem('aether_auth', JSON.stringify(userData));
         applyAuthenticatedUser(userData);
@@ -355,6 +379,31 @@ function initAuth() {
           authOverlay.classList.remove('active');
           if (authAlert) authAlert.style.display = 'none';
         }, 500);
+      } else if (!res || res.status === 404 || res.status === 405) {
+        // GitHub Pages / Static Hosting Mode: Backend endpoints return 404
+        const isAuditor = (username && username.includes('guest')) || (password === 'demo');
+        const fallbackUser = isAuditor ? {
+          name: "Compliance & Risk Auditor",
+          role: "Institutional Compliance Officer",
+          clearance_level: "LEVEL-3 (Auditor Authority)",
+          token: "aether_auditor_token"
+        } : {
+          name: "Shantanu Kalhapure (AI & DS Lead)",
+          role: "Chief Quantitative Strategist",
+          clearance_level: "LEVEL-5 (CIO & CRO Authority)",
+          token: "aether_local_verified_token"
+        };
+
+        sessionStorage.setItem('aether_auth', JSON.stringify(fallbackUser));
+        applyAuthenticatedUser(fallbackUser);
+        resetActivity();
+        showAlert(`✅ Clearance Verified (Demo Gateway): Welcome ${fallbackUser.name}`, 'success');
+
+        setTimeout(() => {
+          authOverlay.classList.remove('active');
+          if (authAlert) authAlert.style.display = 'none';
+          runAnalysis('NVDA');
+        }, 400);
       } else {
         const errBody = await res.json().catch(() => ({}));
         const errMsg = typeof errBody.detail === 'string' ? errBody.detail
@@ -363,7 +412,7 @@ function initAuth() {
         showAlert(`🚨 Authentication Failed: ${errMsg}`, 'error');
       }
     } catch (err) {
-      // Fallback local verification for client demo continuity
+      // Local verification fallback
       const fallbackUser = {
         name: "Shantanu Kalhapure (AI & DS Lead)",
         role: "Chief Quantitative Strategist",
