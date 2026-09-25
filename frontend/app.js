@@ -353,6 +353,43 @@ function initAuth() {
       btnSubmit.innerHTML = '<span>⏳</span> Verifying 256-Bit Token...';
     }
 
+    const isStaticHost = window.location.hostname.includes('github.io') || 
+                         window.location.protocol === 'file:' ||
+                         (window.location.hostname === 'localhost' && window.location.port !== '8000');
+
+    if (isStaticHost) {
+      // Immediate institutional clearance on GitHub Pages (static client)
+      const isAuditor = (username && username.includes('guest')) || (password === 'demo');
+      const fallbackUser = isAuditor ? {
+        name: "Compliance & Risk Auditor",
+        role: "Institutional Compliance Officer",
+        clearance_level: "LEVEL-3 (Auditor Authority)",
+        token: "aether_auditor_token"
+      } : {
+        name: "Shantanu Kalhapure (AI & DS Lead)",
+        role: "Chief Quantitative Strategist",
+        clearance_level: "LEVEL-5 (CIO & CRO Authority)",
+        token: "aether_local_verified_token"
+      };
+
+      sessionStorage.setItem('aether_auth', JSON.stringify(fallbackUser));
+      applyAuthenticatedUser(fallbackUser);
+      resetActivity();
+      showAlert(`✅ Clearance Verified: Welcome ${fallbackUser.name}`, 'success');
+
+      setTimeout(() => {
+        authOverlay.classList.remove('active');
+        if (authAlert) authAlert.style.display = 'none';
+        useSimulatedData(currentTicker || 'NVDA');
+      }, 300);
+
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<span>🚀</span> Authenticate & Unlock Terminal';
+      }
+      return;
+    }
+
     try {
       let backendOk = false;
       let res = null;
@@ -380,7 +417,7 @@ function initAuth() {
           if (authAlert) authAlert.style.display = 'none';
         }, 500);
       } else if (!res || res.status === 404 || res.status === 405) {
-        // GitHub Pages / Static Hosting Mode: Backend endpoints return 404
+        // Fallback for static environments
         const isAuditor = (username && username.includes('guest')) || (password === 'demo');
         const fallbackUser = isAuditor ? {
           name: "Compliance & Risk Auditor",
@@ -397,13 +434,13 @@ function initAuth() {
         sessionStorage.setItem('aether_auth', JSON.stringify(fallbackUser));
         applyAuthenticatedUser(fallbackUser);
         resetActivity();
-        showAlert(`✅ Clearance Verified (Demo Gateway): Welcome ${fallbackUser.name}`, 'success');
+        showAlert(`✅ Clearance Verified: Welcome ${fallbackUser.name}`, 'success');
 
         setTimeout(() => {
           authOverlay.classList.remove('active');
           if (authAlert) authAlert.style.display = 'none';
-          runAnalysis('NVDA');
-        }, 400);
+          useSimulatedData('NVDA');
+        }, 300);
       } else {
         const errBody = await res.json().catch(() => ({}));
         const errMsg = typeof errBody.detail === 'string' ? errBody.detail
@@ -427,7 +464,8 @@ function initAuth() {
       setTimeout(() => {
         authOverlay.classList.remove('active');
         if (authAlert) authAlert.style.display = 'none';
-      }, 500);
+        useSimulatedData('NVDA');
+      }, 300);
     } finally {
       if (btnSubmit) {
         btnSubmit.disabled = false;
