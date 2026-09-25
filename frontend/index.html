@@ -815,7 +815,7 @@
   </footer>
 
   <script>
-    // Bulletproof zero-failure instantaneous clearance
+    // Bulletproof institutional clearance & lockout engine
     function forceUnlockAether(role) {
       var isAud = role === 'auditor';
       var u = {
@@ -828,7 +828,11 @@
       var ov = document.getElementById('authOverlay');
       if (ov) {
         ov.classList.remove('active');
-        ov.style.display = 'none';
+        setTimeout(function() {
+          if (!ov.classList.contains('active')) {
+            ov.style.display = 'none';
+          }
+        }, 250);
       }
       var alertEl = document.getElementById('authAlert');
       if (alertEl) alertEl.style.display = 'none';
@@ -841,7 +845,34 @@
       }
     }
 
+    function forceLockAether(reason, type) {
+      try { sessionStorage.removeItem('aether_auth'); } catch(e){}
+      var secModal = document.getElementById('securityModal');
+      if (secModal) secModal.classList.remove('active');
+
+      var ov = document.getElementById('authOverlay');
+      if (ov) {
+        ov.style.display = 'flex';
+        requestAnimationFrame(function() {
+          ov.classList.add('active');
+        });
+      }
+      var alertEl = document.getElementById('authAlert');
+      if (alertEl) {
+        alertEl.innerText = reason || '🔒 Terminal Locked: Institutional session closed.';
+        alertEl.className = 'auth-alert ' + (type || 'error');
+        alertEl.style.display = 'block';
+      }
+      if (typeof resetActivity === 'function') {
+        resetActivity();
+      }
+    }
+
+    window.forceUnlockAether = forceUnlockAether;
+    window.forceLockAether = forceLockAether;
+
     document.addEventListener('DOMContentLoaded', function() {
+      // Unlock triggers
       ['btnDirectBypass', 'btnQuickDemo', 'btnLoginSubmit'].forEach(function(id) {
         var el = document.getElementById(id);
         if (el) {
@@ -862,8 +893,37 @@
           forceUnlockAether(isAud ? 'auditor' : 'lead');
         }, true);
       }
+
+      // Lockout / Back to Login triggers
+      ['btnBackToLogin', 'btnFooterBackLogin', 'btnLockTerminal', 'userProfileBadge', 'btnSimulateProblem'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var isSignout = (id === 'btnBackToLogin' || id === 'btnFooterBackLogin' || id === 'userProfileBadge');
+            forceLockAether(
+              isSignout ? '👋 Signed Out: Returned to institutional clearance login screen.' : '🔒 Terminal Locked: Session closed to safeguard assets.',
+              isSignout ? 'success' : 'error'
+            );
+          }, true);
+        }
+      });
+
+      // Quick 10s Demo Auto-Lock trigger on Session Timer pill
+      var timerBadge = document.getElementById('sessionTimerBadge');
+      if (timerBadge) {
+        timerBadge.title = "Click to set 10-second fast demo auto-lock";
+        timerBadge.addEventListener('click', function() {
+          if (typeof idleTimeoutSec !== 'undefined') {
+            idleTimeoutSec = 10;
+            if (typeof resetActivity === 'function') resetActivity();
+            alert("⏱️ 10-Second Demo Auto-Lock Activated! Stop moving mouse for 10s to see auto-lock.");
+          }
+        });
+      }
     });
   </script>
-  <script src="app.js?v=4.0.0"></script>
+  <script src="app.js?v=5.0.0"></script>
 </body>
 </html>
