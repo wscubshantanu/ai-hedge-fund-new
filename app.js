@@ -74,7 +74,9 @@ async function authFetch(url, options = {}) {
 
 // Emergency / Timeout Terminal Lockout Handler
 function handleSessionLockout(reasonMessage, alertType = 'error') {
-  sessionStorage.removeItem('aether_auth');
+  try {
+    sessionStorage.removeItem('aether_auth');
+  } catch (e) {}
   
   // Close any active security modal
   const modal = document.getElementById('securityModal');
@@ -83,14 +85,17 @@ function handleSessionLockout(reasonMessage, alertType = 'error') {
   // Activate Login Gatekeeper Overlay
   const authOverlay = document.getElementById('authOverlay');
   if (authOverlay) {
-    authOverlay.classList.add('active');
+    authOverlay.style.display = 'flex';
+    requestAnimationFrame(() => {
+      authOverlay.classList.add('active');
+    });
   }
 
   // Display high-visibility institutional alert
   const authAlert = document.getElementById('authAlert');
   if (authAlert) {
-    authAlert.innerText = reasonMessage;
-    authAlert.className = `auth-alert ${alertType}`;
+    authAlert.innerText = reasonMessage || '🔒 Terminal Locked: Institutional session closed.';
+    authAlert.className = `auth-alert ${alertType || 'error'}`;
     authAlert.style.display = 'block';
   }
 
@@ -110,9 +115,26 @@ function startSessionTimer() {
     window.addEventListener(evt, resetActivity, { passive: true });
   });
 
+  const timerBadge = document.getElementById('sessionTimerBadge');
+  if (timerBadge && !timerBadge.dataset.bound) {
+    timerBadge.dataset.bound = "true";
+    timerBadge.style.cursor = 'pointer';
+    timerBadge.addEventListener('click', () => {
+      if (idleTimeoutSec > 15) {
+        idleTimeoutSec = 10;
+        resetActivity();
+        alert("⏱️ 10-Second Fast Demo Auto-Lock Activated! Do not move your mouse for 10 seconds to test auto-lock.");
+      } else {
+        idleTimeoutSec = 300;
+        resetActivity();
+        alert("⏱️ Restored standard 5-minute auto-lock.");
+      }
+    });
+  }
+
   timerInterval = setInterval(() => {
     const authOverlay = document.getElementById('authOverlay');
-    const isLocked = authOverlay && authOverlay.classList.contains('active');
+    const isLocked = authOverlay && (authOverlay.classList.contains('active') && authOverlay.style.display !== 'none');
     if (isLocked) return;
 
     const elapsed = Math.floor((Date.now() - lastActivityTime) / 1000);
@@ -126,7 +148,7 @@ function startSessionTimer() {
     // Trigger auto-lock when idle threshold reached
     if (remaining <= 0) {
       handleSessionLockout(
-        `⚠️ Inactivity Auto-Lock: Terminal locked after inactivity to safeguard asset positions. Please re-authenticate.`,
+        `⚠️ Inactivity Auto-Lock: Terminal locked after ${idleTimeoutSec}s of inactivity to safeguard asset positions. Please re-authenticate.`,
         'error'
       );
       resetActivity();
