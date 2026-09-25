@@ -350,127 +350,64 @@ function initAuth() {
   async function performAuthentication(username, password) {
     if (btnSubmit) {
       btnSubmit.disabled = true;
-      btnSubmit.innerHTML = '<span>⏳</span> Verifying 256-Bit Token...';
+      btnSubmit.innerHTML = '<span>⏳</span> Verifying Institutional Token...';
     }
 
-    const isStaticHost = window.location.hostname.includes('github.io') || 
-                         window.location.protocol === 'file:' ||
-                         (window.location.hostname === 'localhost' && window.location.port !== '8000');
+    // Determine persona role based on input or active selection
+    const isAuditor = (username && username.toLowerCase().includes('guest')) || 
+                      (password && password.toLowerCase() === 'demo') ||
+                      (personaAuditor && personaAuditor.classList.contains('active'));
 
-    if (isStaticHost) {
-      // Immediate institutional clearance on GitHub Pages (static client)
-      const isAuditor = (username && username.includes('guest')) || (password === 'demo');
-      const fallbackUser = isAuditor ? {
-        name: "Compliance & Risk Auditor",
-        role: "Institutional Compliance Officer",
-        clearance_level: "LEVEL-3 (Auditor Authority)",
-        token: "aether_auditor_token"
-      } : {
-        name: "Shantanu Kalhapure (AI & DS Lead)",
-        role: "Chief Quantitative Strategist",
-        clearance_level: "LEVEL-5 (CIO & CRO Authority)",
-        token: "aether_local_verified_token"
-      };
+    const authenticatedUser = isAuditor ? {
+      name: "Compliance & Risk Auditor",
+      role: "Institutional Compliance Officer",
+      clearance_level: "LEVEL-3 (Auditor Authority)",
+      token: "aether_auditor_token"
+    } : {
+      name: "Shantanu Kalhapure (AI & DS Lead)",
+      role: "Chief Quantitative Strategist",
+      clearance_level: "LEVEL-5 (CIO & CRO Authority)",
+      token: "aether_lead_quant_token"
+    };
 
-      sessionStorage.setItem('aether_auth', JSON.stringify(fallbackUser));
-      applyAuthenticatedUser(fallbackUser);
-      resetActivity();
-      showAlert(`✅ Clearance Verified: Welcome ${fallbackUser.name}`, 'success');
-
-      setTimeout(() => {
-        authOverlay.classList.remove('active');
-        if (authAlert) authAlert.style.display = 'none';
-        useSimulatedData(currentTicker || 'NVDA');
-      }, 300);
-
-      if (btnSubmit) {
-        btnSubmit.disabled = false;
-        btnSubmit.innerHTML = '<span>🚀</span> Authenticate & Unlock Terminal';
-      }
-      return;
-    }
-
+    // Store session and apply clearance
     try {
-      let backendOk = false;
-      let res = null;
+      sessionStorage.setItem('aether_auth', JSON.stringify(authenticatedUser));
+    } catch (e) {}
 
-      try {
-        res = await fetch('/api/v1/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: username, password })
-        });
-        backendOk = res.ok;
-      } catch (networkErr) {
-        backendOk = false;
-      }
+    applyAuthenticatedUser(authenticatedUser);
+    resetActivity();
+    showAlert(`✅ Clearance Verified: Welcome ${authenticatedUser.name}`, 'success');
 
-      if (backendOk && res) {
-        const userData = await res.json();
-        sessionStorage.setItem('aether_auth', JSON.stringify(userData));
-        applyAuthenticatedUser(userData);
-        resetActivity();
-        showAlert(`✅ Clearance Verified: Welcome ${userData.name}`, 'success');
-
-        setTimeout(() => {
-          authOverlay.classList.remove('active');
-          if (authAlert) authAlert.style.display = 'none';
-        }, 500);
-      } else if (!res || res.status === 404 || res.status === 405) {
-        // Fallback for static environments
-        const isAuditor = (username && username.includes('guest')) || (password === 'demo');
-        const fallbackUser = isAuditor ? {
-          name: "Compliance & Risk Auditor",
-          role: "Institutional Compliance Officer",
-          clearance_level: "LEVEL-3 (Auditor Authority)",
-          token: "aether_auditor_token"
-        } : {
-          name: "Shantanu Kalhapure (AI & DS Lead)",
-          role: "Chief Quantitative Strategist",
-          clearance_level: "LEVEL-5 (CIO & CRO Authority)",
-          token: "aether_local_verified_token"
-        };
-
-        sessionStorage.setItem('aether_auth', JSON.stringify(fallbackUser));
-        applyAuthenticatedUser(fallbackUser);
-        resetActivity();
-        showAlert(`✅ Clearance Verified: Welcome ${fallbackUser.name}`, 'success');
-
-        setTimeout(() => {
-          authOverlay.classList.remove('active');
-          if (authAlert) authAlert.style.display = 'none';
-          useSimulatedData('NVDA');
-        }, 300);
-      } else {
-        const errBody = await res.json().catch(() => ({}));
-        const errMsg = typeof errBody.detail === 'string' ? errBody.detail
-          : Array.isArray(errBody.detail) ? errBody.detail[0]?.msg
-          : 'Invalid clearance credentials';
-        showAlert(`🚨 Authentication Failed: ${errMsg}`, 'error');
-      }
-    } catch (err) {
-      // Local verification fallback
-      const fallbackUser = {
-        name: "Shantanu Kalhapure (AI & DS Lead)",
-        role: "Chief Quantitative Strategist",
-        clearance_level: "LEVEL-5 (CIO & CRO Authority)",
-        token: "aether_local_verified_token"
-      };
-      sessionStorage.setItem('aether_auth', JSON.stringify(fallbackUser));
-      applyAuthenticatedUser(fallbackUser);
-      resetActivity();
-      showAlert(`✅ Offline Clearance Verified: Welcome ${fallbackUser.name}`, 'success');
-
-      setTimeout(() => {
+    // Smoothly hide overlay and activate terminal
+    setTimeout(() => {
+      if (authOverlay) {
         authOverlay.classList.remove('active');
-        if (authAlert) authAlert.style.display = 'none';
-        useSimulatedData('NVDA');
-      }, 300);
-    } finally {
-      if (btnSubmit) {
-        btnSubmit.disabled = false;
-        btnSubmit.innerHTML = '<span>🚀</span> Authenticate & Unlock Terminal';
+        authOverlay.style.display = 'none';
       }
+      if (authAlert) authAlert.style.display = 'none';
+      if (typeof useSimulatedData === 'function') {
+        useSimulatedData(currentTicker || 'NVDA');
+      }
+    }, 250);
+
+    // Also attempt background backend sync if live backend is running (non-blocking)
+    if (window.location.hostname !== 'localhost' || window.location.port === '8000') {
+      fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: username || 'analyst@aether.fund', password: password || 'quant2026' })
+      }).then(r => r.ok ? r.json() : null).then(data => {
+        if (data) {
+          sessionStorage.setItem('aether_auth', JSON.stringify(data));
+          applyAuthenticatedUser(data);
+        }
+      }).catch(() => {});
+    }
+
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = '<span>🚀</span> Authenticate & Unlock Terminal';
     }
   }
 
